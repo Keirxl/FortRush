@@ -37,6 +37,7 @@ void loop() {
     clicks = buttonClickCount();
     if(clicks==3){
       setColor(GREEN);
+      team=2;
       isSetup=true;
       isTroops=false;
       signalState=INERT;
@@ -59,7 +60,7 @@ void loop() {
 
   //changes Teams for Troops
   if(isTroops){
-    if(buttonPressed()){
+    if(buttonSingleClicked()){
       team++;
       if(team==7){
         team=3;
@@ -83,9 +84,10 @@ void loop() {
           break;
       }
       
-      for(byte i=0;i<2;i++){ //tell them what team you are!
+      
+    }
+    for(byte i=0;i<2;i++){ //tell them what team you are!
         setValueSentOnFace(team,i);
-      }
     }
   }
 
@@ -114,6 +116,8 @@ void loop() {
             activeFaces[f]=0;
             lastConnectedTeam=6;
             checkCapture();
+          }else{
+            break;
           }
         }
       }
@@ -122,7 +126,7 @@ void loop() {
   
 }
 
-void checkCapture(){
+void checkCapture(){ //checks to see if a piece is captured
   byte health=6;
   FOREACH_FACE(f){
     if(activeFaces[f]==0){
@@ -142,6 +146,9 @@ void checkCapture(){
         break;
       case 6:
         setColor(YELLOW);
+        break;
+      default:
+        setColor(dim(WHITE,75));
         break;
     }
   }
