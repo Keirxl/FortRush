@@ -1,12 +1,23 @@
 //Fort Rush. 
 //Take the fort before your friends do!
+
+#define PALE makeColorHSB(260,40,70)
+#define GUARDCOLOR makeColorRGB(255,0,0)
+#define DEFEND 15
+
 bool isTroops=false;
 bool isSetup=true;
+bool isGuarded=false;
+bool isCaptured=false;
 byte activeFaces[6]={1,1,1,1,1,1};
 enum signalStates {INERT, GO, RESOLVE, STOP};
 byte signalState = INERT;
 byte team=2;
 byte lastConnectedTeam = 99;
+Timer guardTimer;
+int someNumber;
+
+
 void setup() {
   // put your setup code here, to run once:
   setColor(GREEN);
@@ -14,7 +25,80 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
- if(isSetup){
+
+
+  //reset the pieces to fort configuration mode (to be built into communication section)
+  if (buttonMultiClicked()) {
+    byte clicks=0;
+    clicks = buttonClickCount();
+    if(clicks==3){
+      setColor(GREEN);
+      team=2;
+      isSetup=true;
+      isTroops=false;
+      isCaptured=false;
+      signalState=INERT;
+      FOREACH_FACE(f){
+        activeFaces[f]=1;
+      }
+    }
+  }
+  
+  //sets piece to Troops Mode
+  if(buttonLongPressed()){
+    isTroops=true;
+    isSetup=false;
+    team=3;
+    setColor(PALE);
+    setValueSentOnAllFaces(0);
+  }
+
+  
+
+  //changes Teams for Troops
+  if(isTroops){
+    if(buttonSingleClicked()){
+      team++;
+      if(team==7){
+        team=3;
+      }
+    }
+      switch(team){
+        case 3:
+          setColorOnFace(dim(CYAN,100),0);
+          setColorOnFace(dim(CYAN,100),3);
+          setColorOnFace(CYAN,4);
+          setColorOnFace(CYAN,5);
+          break;
+        case 4:
+          setColorOnFace(dim(MAGENTA,100),0);
+          setColorOnFace(dim(MAGENTA,100),3);
+          setColorOnFace(MAGENTA,4);
+          setColorOnFace(MAGENTA,5);
+          break;
+        case 5:
+          setColorOnFace(dim(RED,100),0);
+          setColorOnFace(dim(RED,100),3);
+          setColorOnFace(RED,4);
+          setColorOnFace(RED,5);
+          break;
+        case 6:
+          setColorOnFace(dim(YELLOW,100),0);
+          setColorOnFace(dim(YELLOW,100),3);
+          setColorOnFace(YELLOW,4);
+          setColorOnFace(YELLOW,5);
+          break;
+      }
+    for(byte i=4;i<6;i++){ //tell them what team you are!
+        setValueSentOnFace(team,i);
+    }
+    for(byte i=0;i<4;i++){
+      setValueSentOnFace(0,i);
+    }
+  }
+
+  //setting up the fort formation
+  if(isSetup){
     switch(signalState){
       case INERT:
         inertLoop();
@@ -31,102 +115,77 @@ void loop() {
     setValueSentOnAllFaces(signalState);
   }
 
-  //reset the pieces to fort configuration mode (to be built into communication section)
-  if (buttonMultiClicked()) {
-    byte clicks=0;
-    clicks = buttonClickCount();
-    if(clicks==3){
-      setColor(GREEN);
-      team=2;
-      isSetup=true;
-      isTroops=false;
-      signalState=INERT;
+  //if I'm a Fort piece check if I'm being attacked
+  if(!isSetup && !isTroops){
+
+    //Guard Timing
+    if(!isCaptured){
+      if(guardTimer.isExpired()) {
+          isGuarded = !isGuarded;
+          someNumber=int(random(6000-800));
+          guardTimer.set(someNumber);
+        }
+        
+        if(isGuarded) {
+          FOREACH_FACE(f){
+            if(activeFaces[f]==0){
+              setColorOnFace(GUARDCOLOR,f);
+            }
+          }
+        }
+        else {
+          FOREACH_FACE(f){
+            if(activeFaces[f]==0){
+              setColorOnFace(PALE,f);
+            }
+          }
+        }
+    }
+
+    
+    //setValueSentOnAllFaces(0);
+    
+    if(!isGuarded){
       FOREACH_FACE(f){
-        activeFaces[f]=1;
-      }
-    }
-  }
-  
-  //sets piece to Troops Mode
-  if(buttonLongPressed()){
-    isTroops=true;
-    isSetup=false;
-    setColor(OFF);
-    for(byte i=0;i<2;i++){
-      setValueSentOnFace(team,i);
-      setColorOnFace(RED,i);
-    }
-  }
-
-  //changes Teams for Troops
-  if(isTroops){
-    if(buttonSingleClicked()){
-      team++;
-      if(team==7){
-        team=3;
-      }
-      switch(team){
-        case 3:
-          setColorOnFace(CYAN,3);
-          setColorOnFace(CYAN,4);
-          break;
-        case 4:
-          setColorOnFace(MAGENTA,3);
-          setColorOnFace(MAGENTA,4);
-          break;
-        case 5:
-          setColorOnFace(BLUE,3);
-          setColorOnFace(BLUE,4);
-          break;
-        case 6:
-          setColorOnFace(YELLOW,3);
-          setColorOnFace(YELLOW,4);
-          break;
-      }
-      
-      
-    }
-    for(byte i=0;i<2;i++){ //tell them what team you are!
-        setValueSentOnFace(team,i);
-    }
-  }
-
-  
-  if(!isSetup && !isTroops){ //check if i'm being attacked
-    FOREACH_FACE(f){
-      if(activeFaces[f]==1){ //if the face is active
-        if(!isValueReceivedOnFaceExpired(f)){ // if someone there
-          if(getLastValueReceivedOnFace(f)==3){ //attacking? who is it?
-            setColorOnFace(OFF,f);
-            activeFaces[f]=0;
-            lastConnectedTeam=3;
-            checkCapture();
-          }else if(getLastValueReceivedOnFace(f)==4){
-            setColorOnFace(OFF,f);
-            activeFaces[f]=0;
-            lastConnectedTeam=4;
-            checkCapture();
-          }else if(getLastValueReceivedOnFace(f)==5){
-            setColorOnFace(OFF,f);
-            activeFaces[f]=0;
-            lastConnectedTeam=5;
-            checkCapture();
-          }else if(getLastValueReceivedOnFace(f)==6){
-            setColorOnFace(OFF,f);
-            activeFaces[f]=0;
-            lastConnectedTeam=6;
-            checkCapture();
-          }else{
-            break;
+        if(activeFaces[f]==1){ //if the face is active
+          if(!isValueReceivedOnFaceExpired(f)){ // if someone there
+            if(getLastValueReceivedOnFace(f)==3){ //attacking? who is it?
+              setColorOnFace(OFF,f);
+              activeFaces[f]=0;
+              lastConnectedTeam=3;
+              checkCapture();
+            }else if(getLastValueReceivedOnFace(f)==4){
+              setColorOnFace(OFF,f);
+              activeFaces[f]=0;
+              lastConnectedTeam=4;
+              checkCapture();
+            }else if(getLastValueReceivedOnFace(f)==5){
+              setColorOnFace(OFF,f);
+              activeFaces[f]=0;
+              lastConnectedTeam=5;
+              checkCapture();
+            }else if(getLastValueReceivedOnFace(f)==6){
+              setColorOnFace(OFF,f);
+              activeFaces[f]=0;
+              lastConnectedTeam=6;
+              checkCapture();
+            }else{
+              break;
+            }
           }
         }
       }
     }
   }
+
   
+//end of loop()
 }
 
-void checkCapture(){ //checks to see if a piece is captured
+
+
+//checks to see if a piece is captured
+void checkCapture(){ 
   byte health=6;
   FOREACH_FACE(f){
     if(activeFaces[f]==0){
@@ -134,6 +193,7 @@ void checkCapture(){ //checks to see if a piece is captured
     }
   }
   if(health<1){
+    isCaptured=true;
     switch(lastConnectedTeam){
       case 3:
         setColor(CYAN);
@@ -142,7 +202,7 @@ void checkCapture(){ //checks to see if a piece is captured
         setColor(MAGENTA);
         break;
       case 5:
-        setColor(BLUE);
+        setColor(RED);
         break;
       case 6:
         setColor(YELLOW);
@@ -157,6 +217,7 @@ void checkCapture(){ //checks to see if a piece is captured
 void inertLoop(){ //set up your fort!
   if(buttonDoubleClicked()){
     signalState=GO;
+    
   }
   
   FOREACH_FACE(f){ //Am I connected to other Fort pieces?
@@ -180,10 +241,11 @@ void inertLoop(){ //set up your fort!
 void goLoop(){
   signalState = RESOLVE;//I default to this at the start of the loop. Only if I see a problem does this not happen
 
+  
   FOREACH_FACE(f){ //Am I connected to other Fort pieces?
       if(!isValueReceivedOnFaceExpired(f)){ //someone there
         if(getLastValueReceivedOnFace(f)==GO){ //sendingSignal
-          setColorOnFace(OFF,f);
+          setColorOnFace(PALE,f);
           activeFaces[f]=0;
         }
       }else{
